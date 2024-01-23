@@ -36,7 +36,7 @@ from utils.general import (
 )
 from utils.torch_utils import select_device, smart_inference_mode
 
-
+global tesseractAvailable
 def draw_text(img, text,
           font=cv2.FONT_HERSHEY_COMPLEX_SMALL,
           pos=(0, 0),
@@ -82,11 +82,15 @@ def surnameExtract(finalID):
     #system_output = pytesseract.image_to_string("surname.jpg", config="--oem 3 --psm 6")
     #print(system_output)
 
-    try:
-        texto = pytesseract.image_to_string(surname_gray, config="--oem 3 --psm 6")
-        print(f"Apellido: {texto}")
-    except:
-        print("No se ha podido leer el apellido")
+    if tesseractAvailable:
+        try:
+            texto = pytesseract.image_to_string(surname_gray, config="--oem 3 --psm 6")
+            if texto == "":
+                print("No se ha podido leer el apellido")
+            else:
+                print(f"Apellido: {texto}")
+        except:
+            print("No se ha podido leer el apellido (exception)")
 
     return surname_gray
 
@@ -97,9 +101,16 @@ def nameExtract(finalID):
     name_gray = cv2.cvtColor(name, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/name.jpg", name_gray)
     cv2.resize(name_gray, (0, 0), fx=6, fy=6)
-    #print("Lectura del name:")
-    #system_output = pytesseract.image_to_string("name.jpg", config="--oem 3 --psm 6")
-    #print(system_output)
+
+    if tesseractAvailable:
+        try:
+            texto = pytesseract.image_to_string(name_gray, config="--oem 3 --psm 6")
+            if texto == "":
+                print("No se ha podido leer el nombre")
+            else:
+                print(f"Nombre: {texto}")
+        except:
+            print("No se ha podido leer el nombre (exception)")
     return name_gray
 
 
@@ -109,9 +120,17 @@ def numberExtract(finalID):
     numero_gray = cv2.cvtColor(IDnumber, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/IDnumber.jpg", numero_gray)
     cv2.resize(numero_gray, (0, 0), fx=6, fy=6)
-    #print("Lectura del número de DNI:")
-    #system_output = pytesseract.image_to_string("IDnumber.jpg", config="--oem 3 --psm 6")
-    #print(system_output)
+
+    if tesseractAvailable:
+        try:
+            texto = pytesseract.image_to_string(numero_gray, config="--oem 3 --psm 6")
+            if texto == "":
+                print("No se ha podido leer el número de DNI")
+            else:
+                print(f"Número de DNI: {texto}")
+        except:
+            print("No se ha podido leer el número de DNI (exception)")
+
     return numero_gray
 
 def signatureExtract(finalID):
@@ -126,9 +145,16 @@ def dueDateExtract(finalID):
     dueDate_gray = cv2.cvtColor(dueDate, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/dueDate.jpg", dueDate_gray)
     cv2.resize(dueDate_gray, (0, 0), fx=6, fy=6)
-    #print("Lectura de la fecha de caducidad:")
-    #system_output = pytesseract.image_to_string("caducidad.jpg", config="--oem 3 --psm 6")
-    #print(system_output)
+
+    if tesseractAvailable:
+        try:
+            texto = pytesseract.image_to_string(dueDate_gray, config="--oem 3 --psm 6")
+            if texto == "":
+                print("No se ha podido leer la fecha de caducidad")
+            else:
+                print(f"Fecha de caducidad: {texto}")
+        except:
+            print("No se ha podido leer la fecha de caducidad (exception)")
     return dueDate_gray
 
 def birthdayExtract(finalID):
@@ -136,9 +162,17 @@ def birthdayExtract(finalID):
     birthday_gray = cv2.cvtColor(birthday, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/birthday.jpg", birthday_gray)
     cv2.resize(birthday_gray, (0, 0), fx=6, fy=6)
-    #print("Lectura de la fecha de nacimiento:")
-    #system_output = pytesseract.image_to_string("nacimiento.jpg", config="--oem 3 --psm 6")
-    #print(system_output)
+
+    if tesseractAvailable:
+        try:
+            texto = pytesseract.image_to_string(birthday_gray, config="--oem 3 --psm 6")
+            if texto == "":
+                print("No se ha podido leer la fecha de nacimiento")
+            else:
+                print(f"Fecha de nacimiento: {texto}")
+        except:
+            print("No se ha podido leer la fecha de nacimiento (exception)")
+
     return birthday_gray
 
 def mrzExtract(finalID_backside):
@@ -146,9 +180,17 @@ def mrzExtract(finalID_backside):
     mrz_gray = cv2.cvtColor(mrz, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/mrz.jpg", mrz_gray)
     cv2.resize(mrz_gray, (0, 0), fx=6, fy=6)
-    #print("Lectura del MRZ:")
-    #system_output = pytesseract.image_to_string("mrz.jpg", config="--oem 3 --psm 6")
-    #print(system_output)
+
+    if tesseractAvailable:
+        try:
+            texto = pytesseract.image_to_string(mrz_gray, config="--oem 3 --psm 6")
+            if texto == "":
+                print("No se ha podido leer el MRZ")
+            else:
+                print(f"MRZ: {texto}")
+        except:
+            print("No se ha podido leer el MRZ (exception)")
+
     return mrz_gray
 
 @smart_inference_mode()
@@ -185,6 +227,8 @@ def run(
     source = 1
     source = str(source)
     front = True
+    tesseractAvailable = True
+
     areaScreen = 0
     area = 0
     ratioaspecto = 0
@@ -351,7 +395,8 @@ def run(
                                         #print(f"Mantenga ({6 - dni_count})...")
                                     dni_count += 1
 
-
+                                repetirFront = False
+                                repetirBack = False
                                 if(dni_count == 8 and front):
                                         save_one_box(xyxy, imc, file= dirImagenes / f"DNIdelantero.jpg", BGR=True)
                                         dniDefinitivo = cv2.imread(dirImagenes / f"DNIdelantero.jpg")
@@ -389,20 +434,25 @@ def run(
                                         save_one_box(xyxy, imc, file=dirImagenes / f"DNItrasero.jpg", BGR=True)
                                         dniDefinitivo = cv2.imread(dirImagenes / f"DNItrasero.jpg")
 
-                                        x_inicio = (dniDefinitivo.shape[1] - xywh[2] + 9) // 2
-                                        y_inicio = (dniDefinitivo.shape[0] - xywh[3] + 9) // 2
-                                        x_fin = x_inicio + xywh[2] - 9
-                                        y_fin = y_inicio + xywh[3] - 9
+                                        # Si se clica la leetra R se puede repetir la foto
+                                        if cv2.waitKey(1) & 0xFF == ord("r"):
+                                            repetirBack = True
 
-                                        dniDefinitivo = dniDefinitivo[int(y_inicio):int(y_fin),
-                                                        int(x_inicio):int(x_fin)]
-                                        dniDefinitivo = cv2.resize(dniDefinitivo, (425, 270))
-                                        cv2.imwrite(f"Imagenes/ParteTrasera.png", dniDefinitivo)
-                                        cv2.imshow("Parte trasera", dniDefinitivo)
-                                        cv2.waitKey()
-                                        cv2.imshow("MRZ", mrzExtract(dniDefinitivo))
-                                        cv2.waitKey()
-                                        return 0
+                                        if not repetirBack:
+                                            x_inicio = (dniDefinitivo.shape[1] - xywh[2] + 9) // 2
+                                            y_inicio = (dniDefinitivo.shape[0] - xywh[3] + 9) // 2
+                                            x_fin = x_inicio + xywh[2] - 9
+                                            y_fin = y_inicio + xywh[3] - 9
+
+                                            dniDefinitivo = dniDefinitivo[int(y_inicio):int(y_fin),
+                                                            int(x_inicio):int(x_fin)]
+                                            dniDefinitivo = cv2.resize(dniDefinitivo, (425, 270))
+                                            cv2.imwrite(f"Imagenes/ParteTrasera.png", dniDefinitivo)
+                                            cv2.imshow("Parte trasera", dniDefinitivo)
+                                            cv2.waitKey()
+                                            cv2.imshow("MRZ", mrzExtract(dniDefinitivo))
+                                            cv2.waitKey()
+                                            return 0
 
             # Stream results
             im0 = annotator.result()

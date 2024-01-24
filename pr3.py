@@ -4,9 +4,12 @@ import os
 import platform
 import sys
 import pytesseract
+import shutil
 from pathlib import Path
 
 import torch
+
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -36,7 +39,48 @@ from utils.general import (
 )
 from utils.torch_utils import select_device, smart_inference_mode
 
-global tesseractAvailable
+global tesseractAvailable, DatosDNI, template_number
+
+
+def matchTemplate(dnidetectado):
+        global template_number
+        # Initialize SIFT detector
+        sift = cv2.SIFT_create(contrastThreshold=0.05, edgeThreshold=50)
+
+        # Read the image to compare to
+        IDCardTemplate1 = cv2.imread('DNItemplates/DNITemplateFrontal_1.jpg', cv2.IMREAD_GRAYSCALE)
+        IDCardTemplate2 = cv2.imread('DNItemplates/DNITemplateFrontal_2.png', cv2.IMREAD_GRAYSCALE)
+
+        # Resize both templates to have 425x270 pixels
+        IDCardTemplate1 = cv2.resize(IDCardTemplate1, (425, 270))
+        IDCardTemplate2 = cv2.resize(IDCardTemplate2, (425, 270))
+
+        # Detect SIFT features in the ID card templates
+        IDCard_keypoints1, IDCard_descriptors1 = sift.detectAndCompute(IDCardTemplate1, None)
+        IDCard_keypoints2, IDCard_descriptors2 = sift.detectAndCompute(IDCardTemplate2, None)
+
+        # Convert the frame to grayscale
+        gray = cv2.cvtColor(dnidetectado, cv2.COLOR_BGR2GRAY)
+
+        # Detect SIFT features in the frames
+        keypoints, descriptors = sift.detectAndCompute(gray, None)
+
+        # Match the features using FLANN matcher
+        FLANN_INDEX_KDTREE = 1
+        index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+        search_params = dict(checks=50)
+        flann = cv2.FlannBasedMatcher(index_params, search_params)
+        matches1 = flann.knnMatch(IDCard_descriptors1, descriptors, k=2)
+        matches2 = flann.knnMatch(IDCard_descriptors2, descriptors, k=2)
+
+        # Filter matches using the Lowe's ratio test
+        good_matches1 = [m for m, n in matches1 if m.distance < 0.5 * n.distance]
+        good_matches2 = [m for m, n in matches2 if m.distance < 0.5 * n.distance]
+
+        # Compare the number of good matches
+        template_number = 2 if len(good_matches1) < len(good_matches2) else 1
+
+        return template_number
 def draw_text(img, text,
           font=cv2.FONT_HERSHEY_COMPLEX_SMALL,
           pos=(0, 0),
@@ -68,13 +112,17 @@ def faceExtract(finalID):
 
         cv2.imwrite("Imagenes/facecrop.jpg", facecrop)
         cv2.resize(facecrop, (0, 0), fx=6, fy=6)
-        return facecrop
+        cv2.imshow("Face ID", faceExtract(facecrop))
     except:
-        print("No se ha podido encontrar la cara, revise la iluminación")
-
+        print("")
 
 def surnameExtract(finalID):
-    surname = finalID[80:110, 165:300] # 220:345, 90:150
+    global DatosDNI, template_number
+    if template_number == 2:
+        surname = finalID[80:110, 165:300] # DNI nuevo
+    else:
+        surname = finalID[80:115, 165:305] # DNI viejo
+
     surname_gray = cv2.cvtColor(surname, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/surname.jpg", surname_gray)
     cv2.resize(surname_gray, (0, 0), fx=6, fy=6)
@@ -87,8 +135,10 @@ def surnameExtract(finalID):
             texto = pytesseract.image_to_string(surname_gray, config="--oem 3 --psm 6")
             if texto == "":
                 print("No se ha podido leer el apellido")
+                DatosDNI += "APELLIDOS: \n"
             else:
                 print(f"Apellido: {texto}")
+                DatosDNI += f"APELLIDOS: {texto}\n"
         except:
             print("No se ha podido leer el apellido (exception)")
 
@@ -97,7 +147,11 @@ def surnameExtract(finalID):
 
 
 def nameExtract(finalID):
-    name = finalID[114:132, 165:300] # 220:320, 148:183
+    global DatosDNI, template_number
+    if template_number == 2:
+        name = finalID[114:132, 165:300] # DNI nuevo
+    else:
+        name = finalID[114:140, 165:305] # 220:320, 148:183
     name_gray = cv2.cvtColor(name, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/name.jpg", name_gray)
     cv2.resize(name_gray, (0, 0), fx=6, fy=6)
@@ -107,16 +161,21 @@ def nameExtract(finalID):
             texto = pytesseract.image_to_string(name_gray, config="--oem 3 --psm 6")
             if texto == "":
                 print("No se ha podido leer el nombre")
+                DatosDNI += "NOMBRE: \n"
             else:
                 print(f"Nombre: {texto}")
+                DatosDNI += f"NOMBRE: {texto}\n"
         except:
             print("No se ha podido leer el nombre (exception)")
     return name_gray
 
 
 def numberExtract(finalID):
-    IDnumber = finalID[40:68, 180:325]
-    # IDnumber = finalID[238:261, 38:160]
+    global DatosDNI, template_number
+    if template_number == 2:
+        IDnumber = finalID[40:68, 180:325]
+    else:
+        IDnumber = finalID[238:265, 34:160]
     numero_gray = cv2.cvtColor(IDnumber, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/IDnumber.jpg", numero_gray)
     cv2.resize(numero_gray, (0, 0), fx=6, fy=6)
@@ -126,22 +185,32 @@ def numberExtract(finalID):
             texto = pytesseract.image_to_string(numero_gray, config="--oem 3 --psm 6")
             if texto == "":
                 print("No se ha podido leer el número de DNI")
+                DatosDNI += "NUMERO DE DNI: \n"
             else:
                 print(f"Número de DNI: {texto}")
+                DatosDNI += f"NUMERO DE DNI: {texto}\n"
         except:
             print("No se ha podido leer el número de DNI (exception)")
 
     return numero_gray
 
 def signatureExtract(finalID):
-    signature = finalID[200:250, 175:300]
+    global template_number
+    if template_number == 2:
+        signature = finalID[200:250, 175:300]
+    else:
+        signature = finalID[200:255, 170:330]
     signature_gray = cv2.cvtColor(signature, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/signature.jpg", signature_gray)
     cv2.resize(signature_gray, (0, 0), fx=6, fy=6)
     return signature_gray
 
 def dueDateExtract(finalID):
-    dueDate = finalID[160:180, 245:330]
+    global DatosDNI, template_number
+    if template_number == 2:
+        dueDate = finalID[160:180, 245:330]
+    else:
+        dueDate = finalID[190:220, 240:330]
     dueDate_gray = cv2.cvtColor(dueDate, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/dueDate.jpg", dueDate_gray)
     cv2.resize(dueDate_gray, (0, 0), fx=6, fy=6)
@@ -151,14 +220,20 @@ def dueDateExtract(finalID):
             texto = pytesseract.image_to_string(dueDate_gray, config="--oem 3 --psm 6")
             if texto == "":
                 print("No se ha podido leer la fecha de caducidad")
+                DatosDNI += "CADUCIDAD: \n"
             else:
                 print(f"Fecha de caducidad: {texto}")
+                DatosDNI += f"CADUCIDAD: {texto}\n"
         except:
             print("No se ha podido leer la fecha de caducidad (exception)")
     return dueDate_gray
 
 def birthdayExtract(finalID):
-    birthday = finalID[135:155, 330:420]
+    global DatosDNI, template_number
+    if template_number == 2:
+        birthday = finalID[135:155, 330:420]
+    else:
+        birthday = finalID[165:190, 170:260]
     birthday_gray = cv2.cvtColor(birthday, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/birthday.jpg", birthday_gray)
     cv2.resize(birthday_gray, (0, 0), fx=6, fy=6)
@@ -168,14 +243,17 @@ def birthdayExtract(finalID):
             texto = pytesseract.image_to_string(birthday_gray, config="--oem 3 --psm 6")
             if texto == "":
                 print("No se ha podido leer la fecha de nacimiento")
+                DatosDNI += "NACIMIENTO: \n"
             else:
                 print(f"Fecha de nacimiento: {texto}")
+                DatosDNI += f"NACIMIENTO: {texto}\n"
         except:
             print("No se ha podido leer la fecha de nacimiento (exception)")
 
     return birthday_gray
 
 def mrzExtract(finalID_backside):
+    global DatosDNI
     mrz = finalID_backside[155:269, 1:424]
     mrz_gray = cv2.cvtColor(mrz, cv2.COLOR_BGR2GRAY)
     cv2.imwrite("Imagenes/mrz.jpg", mrz_gray)
@@ -186,8 +264,10 @@ def mrzExtract(finalID_backside):
             texto = pytesseract.image_to_string(mrz_gray, config="--oem 3 --psm 6")
             if texto == "":
                 print("No se ha podido leer el MRZ")
+                DatosDNI += "MRZ: \n"
             else:
                 print(f"MRZ: {texto}")
+                DatosDNI += f"MRZ: {texto}\n"
         except:
             print("No se ha podido leer el MRZ (exception)")
 
@@ -224,6 +304,7 @@ def run(
     dnn=False,  # use OpenCV DNN for ONNX inference
     vid_stride=1,  # video frame-rate stride
 ):
+    global tesseractAvailable, DatosDNI, template_number
     source = 1
     source = str(source)
     front = True
@@ -234,6 +315,9 @@ def run(
     ratioaspecto = 0
 
     dni_count = 0
+    DatosDNI = "---------------------------------------------------------------\n" \
+               "|                         DATOS DNI                            |\n" \
+               "---------------------------------------------------------------\n" \
 
     # Directories
     dirImagenes = increment_path(ROOT / "Ejecucion" / "ejec", exist_ok=exist_ok)
@@ -299,6 +383,7 @@ def run(
         # Process predictions
         for i, det in enumerate(pred):  # per image
             restart = True
+            continuar = False
             seen += 1
             w = 0
             h = 0
@@ -356,15 +441,11 @@ def run(
                                 label = "DNI"
                                 #print(f"DNI count: {dni_count}")
                                 annotator.box_label(xyxy, label, color=colors(c, True))
-                            #annotator.box_label(xyxy, label, color=colors(c, True))
-                                #areaDNI = xyxy[0] * xyxy[1]
                                 xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4))).view(-1).tolist()
-                                print(f"xywh: {xywh[0]}x{xywh[1]}x{xywh[2]}x{xywh[3]}   Area: {xywh[2] * xywh[3]}        Ratio: {xywh[2] / xywh[3]}")
+                                #print(f"xywh: {xywh[0]}x{xywh[1]}x{xywh[2]}x{xywh[3]}   Area: {xywh[2] * xywh[3]}        Ratio: {xywh[2] / xywh[3]}")
 
                                 area = xywh[2] * xywh[3]
                                 ratioaspecto = xywh[2] / xywh[3]
-                                #area = imc.shape[0] * imc.shape[1]
-                                #ratioaspecto = imc.shape[0] / imc.shape[1]
                                 #print(f"Area DNI: {area}, Ratio: {ratioaspecto}")
 
                                 if xywh[2] < xywh[3]:
@@ -372,38 +453,40 @@ def run(
                                               text_color=(0, 0, 0), text_color_bg=(255, 255, 255))
                                     #print("Asegurese de poner el DNI en horizontal")
                                     dni_count = 0
-                                elif area < (areaScreen/10):
+                                elif area < (areaScreen/11):
                                     draw_text(im0, "Acerque el DNI, por favor", font_scale=1, pos=(10, 10), text_color=(0,0,0),
                                               text_color_bg=(255, 255, 255))
                                     #print("Acerque el DNI, por favor")
                                     dni_count = 0
-                                elif not (ratioaspecto > 1.45 and ratioaspecto < 1.63):
+                                elif not (ratioaspecto > 1.55 and ratioaspecto < 1.63):
                                     draw_text(im0, "Enfoque bien el DNI, por favor", font_scale=1, pos=(10, 10),
                                               text_color=(0, 0, 0), text_color_bg=(255, 255, 255))
                                     #print("Enfoque bien el DNI, por favor")
-                                    #dni_count = 0
-                                    if dni_count > 0:
-                                        dni_count -= 1
+                                    dni_count = 0
+                                    #if dni_count > 0:
+                                    #    dni_count -= 1
                                 else:
-                                    if (dni_count == 6 and front) or (dni_count == 4 and not front):
-                                        draw_text(im0, f"Pulse R para repetir la foto", font_scale=1, pos=(10, 10),
-                                                  text_color=(0, 0, 0), text_color_bg=(255, 255, 255))
-                                        #print(f"Mostrando sus datos...")
-                                    else:
+
+                                    #if (dni_count == 6 and front) or (dni_count == 4 and not front):
+                                    #    draw_text(im0, f"Pulse R para repetir la foto", font_scale=1, pos=(10, 10),
+                                    #              text_color=(0, 0, 0), text_color_bg=(255, 255, 255))
+                                    #   #print(f"Mostrando sus datos...")
+                                    #else:
                                         draw_text(im0, f"Mantenga...", font_scale=1, pos=(10, 10),
                                                   text_color=(0, 0, 0), text_color_bg=(255, 255, 255))
-                                        #print(f"Mantenga ({6 - dni_count})...")
-                                    dni_count += 1
+                                        dni_count += 1
+                                        if dni_count > 3:
+                                            continuar = True
+
 
                                 repetirFront = False
                                 repetirBack = False
-                                if(dni_count == 8 and front):
+                                if(continuar and front):
                                         save_one_box(xyxy, imc, file= dirImagenes / f"DNIdelantero.jpg", BGR=True)
                                         dniDefinitivo = cv2.imread(dirImagenes / f"DNIdelantero.jpg")
 
-
                                         # Si se clica la leetra R se puede repetir la foto
-                                        if cv2.waitKey(1) & 0xFF == ord("r"):
+                                        if cv2.waitKey() & 0xFF == ord("r"):
                                             repetirFront = True
 
                                         if not repetirFront:
@@ -414,13 +497,14 @@ def run(
 
                                             dniDefinitivo = dniDefinitivo[int(y_inicio):int(y_fin), int(x_inicio):int(x_fin)]
                                             dniDefinitivo = cv2.resize(dniDefinitivo, (425, 270))
+                                            template_number = matchTemplate(dniDefinitivo)
                                             if not os.path.exists("Imagenes"):
                                                 os.makedirs("Imagenes")
 
                                             cv2.imwrite(f"Imagenes/ParteDelantera.png", dniDefinitivo)
                                             cv2.imshow("Parte delantera", dniDefinitivo)
                                             cv2.waitKey()
-                                            cv2.imshow("Face ID", faceExtract(dniDefinitivo))
+                                            faceExtract(dniDefinitivo)
                                             cv2.imshow("ID Number", numberExtract(dniDefinitivo))
                                             cv2.imshow("Name", nameExtract(dniDefinitivo))
                                             cv2.imshow("Surname", surnameExtract(dniDefinitivo))
@@ -430,13 +514,16 @@ def run(
                                             cv2.waitKey()
                                             front = False
 
-                                if(dni_count == 6 and not front):
+                                        continuar = False
+
+                                if(continuar and not front):
                                         save_one_box(xyxy, imc, file=dirImagenes / f"DNItrasero.jpg", BGR=True)
                                         dniDefinitivo = cv2.imread(dirImagenes / f"DNItrasero.jpg")
 
                                         # Si se clica la leetra R se puede repetir la foto
-                                        if cv2.waitKey(1) & 0xFF == ord("r"):
+                                        if cv2.waitKey() & 0xFF == ord("r"):
                                             repetirBack = True
+                                            continuar = False
 
                                         if not repetirBack:
                                             x_inicio = (dniDefinitivo.shape[1] - xywh[2] + 9) // 2
@@ -452,6 +539,15 @@ def run(
                                             cv2.waitKey()
                                             cv2.imshow("MRZ", mrzExtract(dniDefinitivo))
                                             cv2.waitKey()
+                                            shutil.rmtree("runs/detect")
+                                            shutil.rmtree("Ejecucion")
+
+                                            # Guardamos los datos en un fichero
+                                            with open("DatosDNI.txt", "w") as f:
+                                                f.write(DatosDNI)
+
+                                            # Cerrar programa
+                                            print("Cerrando programa... Hasta pronto!")
                                             return 0
 
             # Stream results
@@ -464,9 +560,6 @@ def run(
 
                 cv2.imshow(str(p), im0)
 
-                if dni_count == 30:
-                    print("Presione cualquier tecla para continuar...")
-                    cv2.waitKey()  # 1 millisecond
                 cv2.waitKey(1)  # 1 millisecond
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)

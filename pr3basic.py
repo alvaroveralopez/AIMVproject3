@@ -75,7 +75,7 @@ def detectionID(frame):
     global messageID, redo, cont_frame, control_frame, angle, rect, heightRectangle, widhtRectangle, vertex, areaScreen, blursize
     # Convertir a escala de grises
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    print(f"blursize: {blursize}")
+    #print(f"blursize: {blursize}")
     edges = cv2.blur(frame_gray, (blursize, blursize))
     edges = cv2.Canny(edges, 100, 200)
 

@@ -405,7 +405,7 @@ def main():
         if ymin >= vertex[i][1]:
             ymin = vertex[i][1]
 
-    print(f"xmax: {xmax}, xmin: {xmin}, ymax: {ymax}, ymin: {ymin}")
+    #print(f"xmax: {xmax}, xmin: {xmin}, ymax: {ymax}, ymin: {ymin}")
 
     cutID = crop[int(ymin):int(ymax), int(xmin):int(xmax)].copy()
     output_directory = "Imagenes"
@@ -433,8 +433,8 @@ def main():
         exit()
 
     # We rotate the image using warpAffine
-    print(f"angle: {angle}")
-    print(f"cutID.shape[0]: {cutID.shape[0]}, cutID.shape[1]: {cutID.shape[1]}")
+    #print(f"angle: {angle}")
+    #print(f"cutID.shape[0]: {cutID.shape[0]}, cutID.shape[1]: {cutID.shape[1]}")
     turnedImage = cv2.warpAffine(cutID, rotation_matrix, (cutID.shape[1], cutID.shape[0]))
     cv2.imshow("DNI rotado en uprigth position", turnedImage)
     cv2.imwrite("Imagenes/turnedImage.jpg", turnedImage)
@@ -508,7 +508,7 @@ def main():
         if ymin >= vertex[i][1]:
             ymin = vertex[i][1]
 
-    print(f"xmax: {xmax}, xmin: {xmin}, ymax: {ymax}, ymin: {ymin}")
+    #print(f"xmax: {xmax}, xmin: {xmin}, ymax: {ymax}, ymin: {ymin}")
 
     # cv2.imshow("DNI capture", crop) # green square
 
@@ -537,8 +537,8 @@ def main():
         exit()
 
     # We rotate the image using warpAffine
-    print(f"angle: {angle}")
-    print(f"cutID.shape[0]: {cutID.shape[0]}, cutID.shape[1]: {cutID.shape[1]}")
+    #print(f"angle: {angle}")
+    #print(f"cutID.shape[0]: {cutID.shape[0]}, cutID.shape[1]: {cutID.shape[1]}")
     turnedImage = cv2.warpAffine(cutID, rotation_matrix, (cutID.shape[1], cutID.shape[0]))
     cv2.imshow("DNI rotado en uprigth position", turnedImage)
     cv2.imwrite("Imagenes/turnedImage_back.jpg", turnedImage)
